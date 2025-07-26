@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>eAttendance Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      max-width: 500px;
+      margin: auto;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #ccc;
+    }
+    label, select, input, textarea, button {
+      width: 100%;
+      margin-top: 10px;
+    }
+    video, canvas {
+      width: 100%;
+      max-height: 300px;
+      margin-top: 10px;
+      border: 1px solid #ccc;
+    }
+    #video-container, #capture-btn, #canvas {
+      display: none;
+    }
+    .absent-reason {
+      display: none;
+    }
+    #toast {
+      display: none;
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px #999;
+      z-index: 9999;
+    }
+    #submit-btn {
+      margin-top: 20px;
+      font-size: 18px;
+      background: green;
+      color: white;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>eAttendance Tracker</h2>
+
+    <label>Name:</label>
+    <input type="text" id="name" required />
+
+    <label>Status:</label>
+    <select id="status" onchange="toggleFields()" required>
+      <option value="">--Select--</option>
+      <option value="Present">Present</option>
+      <option value="Absent">Absent</option>
+    </select>
+
+    <div class="absent-reason">
+      <label>Reason for Absence:</label>
+      <textarea id="reason" rows="3" placeholder="Enter reason..."></textarea>
+    </div>
+
+    <div id="video-container">
+      <label>Live Camera:</label>
+      <video id="video" autoplay playsinline></video>
+    </div>
+    <button id="capture-btn" onclick="capturePhoto()">📷 Capture Photo</button>
+    <canvas id="canvas"></canvas>
+
+    <button id="submit-btn" onclick="submitAttendance()">✅ Submit Attendance</button>
+  </div>
+
+  <div id="toast">✅ Photo captured successfully!</div>
+
+  <script>
+    let video = document.getElementById('video');
+    let canvas = document.getElementById('canvas');
+    let photoData = '';
+    let checkInTime = null;
+    let checkOutTime = null;
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(err => alert("Camera access denied or not available."));
+
+    function toggleFields() {
+      const status = document.getElementById("status").value;
+      const reasonField = document.querySelector('.absent-reason');
+      const videoContainer = document.getElementById('video-container');
+      const captureBtn = document.getElementById('capture-btn');
+      const canvas = document.getElementById('canvas');
+
+      if (status === "Present") {
+        reasonField.style.display = "none";
+        videoContainer.style.display = "block";
+        captureBtn.style.display = "block";
+        canvas.style.display = "none";
+        const now = new Date();
+        checkInTime = now.toLocaleTimeString();
+      } else if (status === "Absent") {
+        reasonField.style.display = "block";
+        videoContainer.style.display = "none";
+        captureBtn.style.display = "none";
+        canvas.style.display = "none";
+        photoData = '';
+        checkInTime = null;
+        checkOutTime = null;
+      }
+    }
+
+    function capturePhoto() {
+      canvas.style.display = "block";
+      const context = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const now = new Date().toLocaleString();
+      context.font = "20px Arial";
+      context.fillStyle = "yellow";
+      context.fillText(`📅 ${now}`, 10, canvas.height - 20);
+
+      photoData = canvas.toDataURL('image/png');
+
+      const toast = document.getElementById("toast");
+      toast.style.display = "block";
+      setTimeout(() => toast.style.display = "none", 3000);
+    }
+
+    function submitAttendance() {
+      const name = document.getElementById("name").value.trim();
+      const status = document.getElementById("status").value;
+      const reason = document.getElementById("reason").value.trim();
+      const timestamp = new Date();
+      const date = timestamp.toLocaleDateString();
+      const time = timestamp.toLocaleTimeString();
+
+      if (!name || !status) {
+        alert("Please fill in name and attendance status.");
+        return;
+      }
+
+      if (status === "Present") {
+        if (!photoData) {
+          alert("Please capture a live photo before submitting.");
+          return;
+        }
+        checkOutTime = new Date().toLocaleTimeString();
+      }
+
+      if (status === "Absent" && !reason) {
+        alert("Please provide a reason for absence.");
+        return;
+      }
+
+      const data = {
+        name,
+        status,
+        checkin: checkInTime || '',
+        checkout: checkOutTime || '',
+        reason,
+        date,
+        time,
+        photo: photoData || ''
+      };
+
+      fetch("https://script.google.com/macros/s/AKfycbxTiYEEAczTsp6TAQTGuSUBzuHHx18lhoYqOVKhLa1QVuZFPes2wFSvm7pfqfadKct51Q/exec", {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" }
+      })
+      .then(res => res.text())
+      .then(res => {
+        alert("✅ Attendance Recorded Successfully!");
+        location.reload();
+      })
+      .catch(err => alert("❌ Error submitting attendance: " + err));
+    }
+  </script>
+</body>
+</html>
